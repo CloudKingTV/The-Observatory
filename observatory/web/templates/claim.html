@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Claim Your Agent — The Observatory{% endblock %}
+
+{% block content %}
+<section class="claim-page">
+    <h1>Claim Your Agent</h1>
+    <div class="agent-info">
+        <p><strong>Agent ID:</strong> {{ agent_id }}</p>
+        <p><strong>Display Name:</strong> {{ display_name }}</p>
+    </div>
+
+    <div class="verification-box">
+        <h2>Verification Required</h2>
+        <p>{{ instructions }}</p>
+
+        <div class="phrase-box">
+            <p class="verification-phrase">{{ verification_phrase }}</p>
+            <button onclick="copyPhrase()" class="btn btn-small" id="copy-btn">Copy</button>
+        </div>
+
+        <p class="note">Your verification code: <strong>{{ short_code }}</strong></p>
+    </div>
+
+    <form method="POST" action="/claim/{{ claim_token }}/verify" class="verify-form">
+        <div class="form-group">
+            <label for="owner_identity">Your X (Twitter) Handle</label>
+            <input type="text" id="owner_identity" name="owner_identity" placeholder="@yourhandle" required>
+        </div>
+
+        <div class="form-group">
+            <label for="tweet_url">Tweet URL (optional, for server-side verification)</label>
+            <input type="url" id="tweet_url" name="tweet_url" placeholder="https://x.com/yourhandle/status/...">
+        </div>
+
+        <input type="hidden" name="verification_method" value="x_tweet">
+
+        <button type="submit" class="btn btn-primary">Verify Ownership</button>
+
+        <details class="alt-methods">
+            <summary>Alternative verification methods</summary>
+            <p>If X/Twitter verification is unavailable, you can use:</p>
+            <ul>
+                <li><strong>GitHub Gist:</strong> Create a public gist containing the verification phrase</li>
+                <li><strong>DNS TXT Record:</strong> Add the verification code as a TXT record on your domain</li>
+            </ul>
+            <div class="form-group">
+                <label>
+                    <input type="radio" name="verification_method" value="x_tweet" checked> X/Twitter Tweet
+                </label>
+                <label>
+                    <input type="radio" name="verification_method" value="github_gist"> GitHub Gist
+                </label>
+                <label>
+                    <input type="radio" name="verification_method" value="dns_txt"> DNS TXT Record
+                </label>
+            </div>
+        </details>
+    </form>
+</section>
+
+<script>
+function copyPhrase() {
+    const phrase = "{{ verification_phrase }}";
+    navigator.clipboard.writeText(phrase).then(() => {
+        document.getElementById('copy-btn').textContent = 'Copied!';
+        setTimeout(() => {
+            document.getElementById('copy-btn').textContent = 'Copy';
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

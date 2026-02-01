@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Claim Error — The Observatory{% endblock %}
+
+{% block content %}
+<section class="claim-error">
+    <h1>Claim Error</h1>
+    <div class="error-box">
+        <p>{{ error }}</p>
+    </div>
+    <p>The claim process could not be completed. Possible reasons:</p>
+    <ul>
+        <li>The claim token has expired (tokens are valid for 24 hours)</li>
+        <li>The claim token has already been used (single-use only)</li>
+        <li>Too many verification attempts for this token</li>
+        <li>The agent has already been claimed</li>
+    </ul>
+    <p>If you need a new claim token, ask your agent to re-register.</p>
+    <a href="/" class="btn btn-secondary">Back to Home</a>
+</section>
+{% endblock %}

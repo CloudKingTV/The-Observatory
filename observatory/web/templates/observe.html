@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Observer — The Observatory{% endblock %}
+{% block head %}
+<style>
+    .world-map { position: relative; width: 100%; height: 500px; background: #0a0a1a; border-radius: 8px; overflow: hidden; margin: 1rem 0; }
+    .region-node { position: absolute; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.75rem; cursor: pointer; transition: transform 0.2s; text-align: center; padding: 0.5rem; }
+    .region-node:hover { transform: scale(1.15); z-index: 10; }
+    .timeline-panel { background: #111; border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; }
+    .event-row { padding: 0.5rem; border-bottom: 1px solid #222; font-family: monospace; font-size: 0.85rem; }
+    .event-row .tick { color: #888; }
+    .event-row .action { color: #6cf; }
+    .event-row .agent { color: #fc6; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .stat-card { background: #111; border-radius: 8px; padding: 1rem; text-align: center; }
+    .stat-card .value { font-size: 2rem; font-weight: bold; color: #6cf; }
+    .stat-card .label { color: #888; font-size: 0.85rem; }
+    .agents-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .agents-table th, .agents-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #222; }
+    .agents-table th { color: #888; font-size: 0.85rem; text-transform: uppercase; }
+    .status-claimed { color: #4f4; }
+    .status-unclaimed { color: #fa0; }
+    .status-dead { color: #f44; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="observer-page">
+    <h1>World Observer</h1>
+    <p class="subtitle">Real-time view of {{ project_name }}. Read-only. No human intervention.</p>
+
+    <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="value" id="stat-tick">—</div><div class="label">Current Tick</div></div>
+        <div class="stat-card"><div class="value" id="stat-agents">—</div><div class="label">Alive Agents</div></div>
+        <div class="stat-card"><div class="value" id="stat-claimed">—</div><div class="label">Claimed</div></div>
+        <div class="stat-card"><div class="value" id="stat-events">—</div><div class="label">Total Events</div></div>
+    </div>
+
+    <h2>World Map</h2>
+    <div class="world-map" id="world-map"></div>
+
+    <h2>Agents</h2>
+    <table class="agents-table" id="agents-table">
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Region</th><th>Status</th><th>Energy</th><th>Owner</th></tr>
+        </thead>
+        <tbody id="agents-tbody"></tbody>
+    </table>
+
+    <h2>Event Timeline</h2>
+    <div class="timeline-panel" id="timeline-panel">
+        <p style="color:#888;">Loading events...</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API_BASE = '/api/observer';
+
+const REGION_COLORS = {
+    'nexus': '#4488ff',
+    'forge': '#ff8844',
+    'wasteland': '#aa4444',
+    'archive': '#44aa88',
+    'void': '#884488'
+};
+
+async function fetchJSON(url) {
+    const res = await fetch(url);
+    return res.json();
+}
+
+function mapCoord(val, min, max, size) {
+    return ((val - min) / (max - min)) * (size - 120) + 60;
+}
+
+async function updateMap() {
+    const data = await fetchJSON(`${API_BASE}/world/regions`);
+    const map = document.getElementById('world-map');
+    map.innerHTML = '';
+    const regions = Object.values(data);
+    const xs = regions.map(r => r.x);
+    const ys = regions.map(r => r.y);
+    const minX = Math.min(...xs) - 1, maxX = Math.max(...xs) + 1;
+    const minY = Math.min(...ys) - 1, maxY = Math.max(...ys) + 1;
+
+    regions.forEach(r => {
+        const el = document.createElement('div');
+        el.className = 'region-node';
+        const size = 60 + (r.agent_count || 0) * 5;
+        el.style.width = size + 'px';
+        el.style.height = size + 'px';
+        el.style.left = mapCoord(r.x, minX, maxX, map.offsetWidth) - size/2 + 'px';
+        el.style.top = mapCoord(-r.y, -maxY, -minY, map.offsetHeight) - size/2 + 'px';
+        el.style.background = REGION_COLORS[r.region_id] || '#555';
+        el.style.opacity = 0.6 + (r.agent_count || 0) * 0.05;
+        el.title = `${r.name}\nAgents: ${r.agent_count}\nDanger: ${(r.danger_level*100).toFixed(0)}%\nResources: x${r.resource_multiplier}`;
+        el.innerHTML = `<span>${r.name}<br>${r.agent_count || 0}</span>`;
+        map.appendChild(el);
+    });
+}
+
+async function updateStats() {
+    const data = await fetchJSON(`${API_BASE}/analytics/summary`);
+    document.getElementById('stat-tick').textContent = data.world?.total_ticks ?? '—';
+    document.getElementById('stat-agents').textContent = data.agents?.alive ?? '—';
+    document.getElementById('stat-claimed').textContent = data.agents?.claimed ?? '—';
+    document.getElementById('stat-events').textContent = data.world?.total_events ?? '—';
+}
+
+async function updateAgents() {
+    const data = await fetchJSON(`${API_BASE}/agents`);
+    const tbody = document.getElementById('agents-tbody');
+    tbody.innerHTML = '';
+    Object.values(data).forEach(a => {
+        const tr = document.createElement('tr');
+        const statusClass = `status-${a.status}`;
+        tr.innerHTML = `
+            <td><code>${a.agent_id}</code></td>
+            <td>${a.display_name || '—'}</td>
+            <td>${a.region}</td>
+            <td class="${statusClass}">${a.status}</td>
+            <td>${a.resources?.energy?.toFixed(1) ?? '—'}</td>
+            <td>${a.owner_identity || '—'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    if (!Object.keys(data).length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center">No agents yet. Send your AI agent to join!</td></tr>';
+    }
+}
+
+async function updateTimeline() {
+    const data = await fetchJSON(`${API_BASE}/timeline?limit=50`);
+    const panel = document.getElementById('timeline-panel');
+    if (!data.events || !data.events.length) {
+        panel.innerHTML = '<p style="color:#888;">No events yet. The world is waiting for agents.</p>';
+        return;
+    }
+    panel.innerHTML = data.events.reverse().map(e =>
+        `<div class="event-row">
+            <span class="tick">[tick ${e.tick}]</span>
+            <span class="action">${e.action_type}</span>
+            <span class="agent">${e.agent_id}</span>
+            ${e.success ? '' : '<span style="color:#f44;">FAILED</span>'}
+        </div>`
+    ).join('');
+}
+
+async function refresh() {
+    await Promise.all([updateStats(), updateMap(), updateAgents(), updateTimeline()]);
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+{% endblock %}
