@@ -131,7 +131,8 @@ class AgentGateway:
         self.world_state.add_agent(agent)
         self.world_state.save()
 
-        claim_url = f"https://{self.domain}/claim/{claim_token}"
+        scheme = "http" if "localhost" in self.domain or "127.0.0.1" in self.domain else "https"
+        claim_url = f"{scheme}://{self.domain}/claim/{claim_token}"
 
         return RegistrationResult(
             success=True,
